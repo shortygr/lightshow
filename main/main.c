@@ -9,7 +9,7 @@
 #include "esp_lcd_sh8601.h"
 #include "touch_bsp.h"
 #include "i2c_bsp.h"
-#include "arrow_left.h"
+#include "icons.h"
 #include "esp_timer.h"
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_vendor.h"
@@ -112,7 +112,9 @@ static void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_
 
 lv_obj_t* arrow_animated = NULL;
 lv_obj_t* arrow_off = NULL;
-
+lv_obj_t* bmwLogo = NULL;
+lv_obj_t* bmwText = NULL;
+lv_obj_t* mainScreen = NULL;
 
 /* Rotate display and touch, when rotated screen in LVGL. Called when driver parameters are updated. */
 static void example_lvgl_update_cb(lv_disp_drv_t *drv)
@@ -218,48 +220,6 @@ static void example_lvgl_port_task(void *arg)
     }
 }
 
-static void anim_x_cb(void * var, int32_t v)
-{
-    lv_obj_set_x(var, v);
-}
-
-static void anim_size_cb(void * var, int32_t v)
-{
-    lv_obj_set_size(var, v, v);
-}
-
-/**
- * Create a playback animation
- */
-void lv_example_anim_2(void)
-{
-
-    lv_obj_t * obj = lv_obj_create(lv_scr_act());
-    lv_obj_set_style_bg_color(obj, lv_palette_main(LV_PALETTE_RED), 0);
-    lv_obj_set_style_radius(obj, LV_RADIUS_CIRCLE, 0);
-
-    lv_obj_align(obj, LV_ALIGN_LEFT_MID, 10, 0);
-
-    lv_anim_t a;
-    lv_anim_init(&a);
-    lv_anim_set_var(&a, obj);
-    lv_anim_set_values(&a, 10, 50);
-    lv_anim_set_time(&a, 1000);
-    lv_anim_set_playback_delay(&a, 100);
-    lv_anim_set_playback_time(&a, 300);
-    lv_anim_set_repeat_delay(&a, 500);
-    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
-    lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
-
-    lv_anim_set_exec_cb(&a, anim_size_cb);
-    lv_anim_start(&a);
-    lv_anim_set_exec_cb(&a, anim_x_cb);
-    lv_anim_set_values(&a, 10, 240);
-    lv_anim_start(&a);
-}
-
-
-
 void blink_anim_cb(void * obj, int32_t v) {
     lv_obj_set_style_opa(obj, v, 0); // v goes from 0 to 255
 }
@@ -314,7 +274,7 @@ void create_blinking_dot(void)
     lv_label_set_text(dot, ".");  // You can use other directions too
 
     // Set the arrow color to green
-    lv_obj_set_style_text_color(dot, lv_color_hex(0x00FF00), 0);
+    lv_obj_set_style_text_color(dot, lv_color_hex(0xFFFFFF), 0);
  
     // Create an animation to blink the arrow
     lv_anim_t a;
@@ -331,15 +291,145 @@ void create_blinking_dot(void)
 void show_arrow(void)
 {
     LV_IMG_DECLARE(arrow_left);  // Declare the image (auto-defined by converter)
+    LV_IMG_DECLARE(arrow_right);  // Declare the image (auto-defined by converter)
+    LV_IMG_DECLARE(hazard);  // Declare the image (auto-defined by converter)
+    LV_IMG_DECLARE(lowBeam);  // Declare the image (auto-defined by converter)
+    LV_IMG_DECLARE(highBeam);  // Declare the image (auto-defined by converter)
+    LV_IMG_DECLARE(power);  // Declare the image (auto-defined by converter)
+    LV_IMG_DECLARE(brake);  // Declare the image (auto-defined by converter)
 
-    lv_obj_t *img = lv_img_create(lv_scr_act());     // Create image object
-    lv_img_set_src(img, &arrow_left);                 // Set image source
-    lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);  
-    lv_obj_set_style_opa(img, LV_OPA_20, 0);
-    arrow_off = img;  // Store the image object for later use
+    
+    lv_obj_t *img_arrow_left = lv_img_create(mainScreen);     // Create image object
+    lv_img_set_src(img_arrow_left, &arrow_left);                 // Set image source
+    lv_obj_align(img_arrow_left, LV_ALIGN_CENTER, -90, -70);
+    lv_obj_set_style_opa(img_arrow_left, LV_OPA_20, 0);
+    arrow_off = img_arrow_left;  // Store the image object for later use
+
+
+    lv_obj_t *img_arrow_right = lv_img_create(mainScreen);     // Create image object
+    lv_img_set_src(img_arrow_right, &arrow_right);                 // Set image source
+    lv_obj_align(img_arrow_right, LV_ALIGN_CENTER, 90, -70);
+    lv_obj_set_style_opa(img_arrow_right, LV_OPA_20, 0);
+
+    lv_obj_t *img_hazard = lv_img_create(mainScreen);     // Create image object
+    lv_img_set_src(img_hazard, &hazard);                 // Set image source
+    lv_obj_align(img_hazard, LV_ALIGN_CENTER, 0, -70);
+    lv_obj_set_style_opa(img_hazard, LV_OPA_20, 0);
+
+    lv_obj_t *img_power = lv_img_create(mainScreen);     // Create image object
+    lv_img_set_src(img_power, &power);                 // Set image source
+    lv_obj_align(img_power, LV_ALIGN_CENTER, -170, 30);
+    lv_obj_set_style_opa(img_power, LV_OPA_COVER, 0);
+
+    lv_obj_t *img_highBeam = lv_img_create(mainScreen);     // Create image object
+    lv_img_set_src(img_highBeam, &highBeam);                 // Set image source
+    lv_obj_align(img_highBeam, LV_ALIGN_CENTER, 170, -70);
+    lv_obj_set_style_opa(img_highBeam, LV_OPA_40, 0);
+
+    lv_obj_t *img_brake = lv_img_create(mainScreen);     // Create image object
+    lv_img_set_src(img_brake, &brake);                 // Set image source
+    lv_obj_align(img_brake, LV_ALIGN_CENTER, -170, -70);
+    lv_obj_set_style_opa(img_brake, LV_OPA_20, 0);
+
+    lv_obj_t *img_lowBeam = lv_img_create(mainScreen);     // Create image object
+    lv_img_set_src(img_lowBeam, &lowBeam);                 // Set image source
+    lv_obj_align(img_lowBeam, LV_ALIGN_CENTER, 170, 30);
+    lv_obj_set_style_opa(img_lowBeam, LV_OPA_COVER, 0);    
 }
 
+void create_splash_screen(void)
+{
+    LV_IMG_DECLARE(bmw);  // Declare the image (auto-defined by converter)
 
+    lv_obj_t *img = lv_img_create(lv_scr_act());     // Create image object
+    lv_img_set_src(img, &bmw);                        // Set image source
+//    lv_obj_align(img, LV_ALIGN_OUT_TOP_MID , 0, 70);  
+    lv_obj_align(img, LV_ALIGN_CENTER, 0, -30);  
+
+
+    lv_obj_t * label = lv_label_create(lv_scr_act());
+    lv_label_set_text(label, "BMW MOTORRAD");
+    lv_obj_align_to(label, img, LV_ALIGN_CENTER, -230, 70);
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_22, 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), 0);
+
+    // Start fully transparent
+    lv_obj_set_style_opa(img, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_opa(label, LV_OPA_TRANSP, 0);
+
+    bmwLogo = img;  // Store the image object for later use
+    bmwText = label; // Store the label object for later use
+}
+
+void fade_in(lv_obj_t * obj) {
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, obj);
+    lv_anim_set_exec_cb(&a, blink_anim_cb);
+    lv_anim_set_values(&a, LV_OPA_TRANSP, LV_OPA_COVER);  // 0 to 255
+    lv_anim_set_time(&a, 500);  // 0.5s fade in
+    lv_anim_start(&a);
+}
+
+void fade_out(lv_obj_t * obj) {
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, obj);
+    lv_anim_set_exec_cb(&a, blink_anim_cb);
+    lv_anim_set_values(&a, LV_OPA_COVER, LV_OPA_TRANSP);
+    lv_anim_set_time(&a, 500);  // 0.5s fade out
+    lv_anim_start(&a);
+}
+
+void fade_sequence() {
+    create_splash_screen();
+    fade_in(bmwLogo);
+    fade_in(bmwText);
+
+    // After 5 seconds (5000 ms), fade out
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    fade_out(bmwLogo);
+    fade_out(bmwText);
+
+}
+
+void show_main_screen(void)
+{
+    lv_scr_load(mainScreen);
+}
+
+void splash_timer_cb(lv_timer_t * timer) {
+    show_main_screen();
+    lv_timer_del(timer);
+}
+
+void show_splash_screen(void)
+{
+    LV_IMG_DECLARE(bmw); 
+    // Create a new screen object
+    lv_obj_t *splash = lv_obj_create(NULL);
+    lv_obj_clear_flag(splash, LV_OBJ_FLAG_SCROLLABLE); // Make it non-scrollable
+    lv_obj_set_style_bg_color(splash, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(splash, LV_OPA_COVER, 0);
+
+    // Create and add the logo image
+    lv_obj_t *img_logo = lv_img_create(splash);
+    lv_img_set_src(img_logo, &bmw); // Use the variable from your image file
+    lv_obj_align(img_logo, LV_ALIGN_CENTER, 0, -40);  // Centered, slightly up
+
+    // Create and add the text label
+    lv_obj_t *label = lv_label_create(splash);
+    lv_label_set_text(label, "BMW MOTORRAD");
+    lv_obj_set_style_text_font(label, &lv_font_montserrat_22, 0);
+    lv_obj_set_style_text_color(label, lv_color_hex(0xFFFFFF), 0); // White color
+    lv_obj_align(label, LV_ALIGN_CENTER, 0, 70); // Centered, slightly down
+
+    // Load the splash screen
+    lv_scr_load(splash);
+
+    lv_timer_create(splash_timer_cb, 5000, NULL);
+
+}
 
 void my_touch_function() 
 {
@@ -501,6 +591,11 @@ void app_main(void)
         //lv_demo_benchmark();    /* A demo to measure the performance of LVGL or to compare different settings. */
         //; // Create a blinking arrow on the active screen
         ESP_LOGI(TAG, "Show animation");
+        mainScreen= lv_scr_act(); // Get the current screen
+
+ 
+        show_splash_screen();
+        
         create_touch_area();
         show_arrow();
         create_blinking_dot();

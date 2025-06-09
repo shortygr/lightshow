@@ -1,2 +1,2 @@
-idf_component_register(SRCS "main.c" "arrow_left.c"
+idf_component_register(SRCS "icons.c" "main.c"
                     INCLUDE_DIRS ".")
