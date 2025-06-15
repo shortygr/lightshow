@@ -111,13 +111,10 @@ static void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_
 }
 
 
-#define ICON_COUNT_HAZARD 3
-static lv_obj_t* icons[ICON_COUNT_HAZARD];
 
 
-lv_obj_t* arrow_left_animated = NULL;
-lv_obj_t* arrow_right_animated = NULL;
-static lv_obj_t* hazard_animated[ICON_COUNT_HAZARD];
+
+
 lv_obj_t* arrow_left_off = NULL;
 lv_obj_t* arrow_right_off = NULL;
 lv_obj_t* hazard_off = NULL;
@@ -127,11 +124,19 @@ lv_obj_t* low_beam_off = NULL; // Pointer to the arrow object
 lv_obj_t* brake_on = NULL; // Pointer to the arrow object
 lv_obj_t* high_beam_on = NULL; // Pointer to the arrow object
 lv_obj_t* low_beam_on = NULL; // Pointer to the arrow object
+lv_anim_timeline_t *hazard_timeline = NULL; // Pointer to the hazard timeline
 
 
 lv_obj_t* bmwLogo = NULL;
 lv_obj_t* bmwText = NULL;
 lv_obj_t* mainScreen = NULL;
+
+bool high_beam_on_flag = false;
+bool arrow_left_blinking = false;
+bool arrow_right_blinking = false;
+bool hazard_blinking = false;
+
+
 
 /* Rotate display and touch, when rotated screen in LVGL. Called when driver parameters are updated. */
 static void example_lvgl_update_cb(lv_disp_drv_t *drv)
@@ -241,11 +246,6 @@ void blink_anim_cb(void * obj, int32_t v) {
     lv_obj_set_style_opa(obj, v, 0); // v goes from 0 to 255
 }
 
-void blink_anim_cb_hazard(void * obj, int32_t v) {
-    for (int i = 0; i < ICON_COUNT_HAZARD; i++) {
-        lv_obj_set_style_opa(hazard_animated[i], v, 0);
-    }
-}
 
 void remove_arrow_left_off()
 {
@@ -262,47 +262,62 @@ void remove_arrow_right_off()
 void remove_hazard_off()
 {
     lv_obj_del(hazard_off);
-    lv_obj_del(arrow_left_off);
-    lv_obj_del(arrow_right_off);
     hazard_off = NULL; // Clear the pointer after deletion
 }
 
 void stop_animation_arrow_left()
 {
-    lv_obj_del(arrow_left_animated); // Delete the animated object
-    arrow_left_animated = NULL; // Clear the pointer after deletion
+    lv_anim_del(arrow_left_off, blink_anim_cb); // Delete the animated object
+    arrow_left_blinking = false; // Clear the flag
 }
 
 void stop_animation_arrow_right()
 {
-    lv_obj_del(arrow_right_animated); // Delete the animated object
-    arrow_right_animated = NULL; // Clear the pointer after deletion
+    lv_anim_del(arrow_right_off, blink_anim_cb); // Delete the animated object
+    arrow_right_blinking = false; // Clear the flag
 }
 
 void stop_animation_hazard()
 {
-    lv_obj_del(hazard_animated); // Delete the animated object
-    hazard_animated = NULL; // Clear the pointer after deletion
+    if(hazard_timeline != NULL) {
+        lv_anim_timeline_stop(hazard_timeline);
+    }
+    hazard_blinking = false; // Clear the flag
 }
 
-void create_blinking_arrow_lef(void)
+void create_blinking_arrow_left(lv_anim_timeline_t *timeline)
 {
+    if(arrow_left_off == NULL) {
+        LV_IMG_DECLARE(arrow_left);  // Declare the image (auto-defined by converter)
+        arrow_left_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(arrow_left_off, &arrow_left);                 // Set image source
+        lv_obj_align(arrow_left_off, LV_ALIGN_CENTER, -90, -70);
+    }
     // Create an animation to blink the arrow
     lv_anim_t a;
     lv_anim_init(&a);
-    lv_anim_set_var(&a, NULL);
+    lv_anim_set_var(&a, arrow_left_off);
     lv_anim_set_values(&a, 0, 255); // Fade out to transparent
     lv_anim_set_time(&a, 500);      // 500 ms for one phase
     lv_anim_set_playback_time(&a, 500); // Fade back in
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE); // Repeat forever
-    lv_anim_set_exec_cb(&a, blink_anim_cb_hazard);
-    lv_anim_start(&a);
-    arrow_left_animated = arrow_left_off; // Store the animated object for later use
-    arrow_left_off = NULL; // Clear the pointer after starting the animation
+    lv_anim_set_exec_cb(&a, blink_anim_cb);
+    if(timeline == NULL) {
+        lv_anim_start(&a);
+    }else{
+        lv_anim_timeline_add(timeline,0,&a); // Add the animation to the timeline
+    }
+    arrow_left_blinking = true; // Set the flag to indicate the arrow is blinking
 }
 
-void create_blinking_arrow_right(void)
+void create_blinking_arrow_right(lv_anim_timeline_t *timeline)
 {
+    if(arrow_right_off == NULL) {
+        LV_IMG_DECLARE(arrow_right);  // Declare the image (auto-defined by converter)
+        arrow_right_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(arrow_right_off, &arrow_right);                 // Set image source
+        lv_obj_align(arrow_right_off, LV_ALIGN_CENTER, 90, -70);
+    }
     // Create an animation to blink the arrow
     lv_anim_t a;
     lv_anim_init(&a);
@@ -312,17 +327,22 @@ void create_blinking_arrow_right(void)
     lv_anim_set_playback_time(&a, 500); // Fade back in
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE); // Repeat forever
     lv_anim_set_exec_cb(&a, blink_anim_cb);
-    lv_anim_start(&a);
-    arrow_right_animated = arrow_right_off; // Store the animated object for later use
-    arrow_right_off = NULL; // Clear the pointer after starting the animation
+    if(timeline == NULL) {
+        lv_anim_start(&a);
+    }else{
+        lv_anim_timeline_add(timeline, 0,&a); // Add the animation to the timeline
+    }
+    arrow_right_blinking = true; // Set the flag to indicate the arrow is blinking
 }
 
-void create_blinking_hazard(void)
+void create_blinking_hazard(lv_anim_timeline_t *timeline)
 {
-    // Create an animation to blink the hazard
-    hazard_animated[0] = arrow_left_off; // Use the left arrow as the first hazard icon
-    hazard_animated[1] = arrow_right_off; // Use the right arrow as the second hazard icon
-    hazard_animated[2] = hazard_off;      // Use the hazard icon as the third hazard icon
+    if(hazard_off == NULL) {
+        LV_IMG_DECLARE(hazard);  // Declare the image (auto-defined by converter)
+        hazard_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(hazard_off, &hazard);                 // Set image source
+        lv_obj_align(hazard_off, LV_ALIGN_CENTER, 0, -70);
+    }        
 
     lv_anim_t a;
     lv_anim_init(&a);
@@ -332,9 +352,24 @@ void create_blinking_hazard(void)
     lv_anim_set_playback_time(&a, 500); // Fade back in
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE); // Repeat forever
     lv_anim_set_exec_cb(&a, blink_anim_cb);
-    lv_anim_start(&a);
-    hazard_off = NULL; // Clear the pointer after starting the animation
+    if(timeline == NULL) {
+        lv_anim_start(&a);
+    }else{
+        lv_anim_timeline_add(timeline, 0, &a); // Add the animation to the timeline
+    }
+    hazard_blinking = true; // Set the flag to indicate the hazard is blinking
 }
+
+void crete_blinking_hazard_group(void)
+{
+    lv_anim_timeline_t *timeline = lv_anim_timeline_create();
+    create_blinking_arrow_left(timeline);
+    create_blinking_arrow_right(timeline);
+    create_blinking_hazard(timeline);
+    lv_anim_timeline_start(timeline);
+    hazard_timeline = timeline; // Store the timeline for later use
+}
+
 
 void create_blinking_dot(void)
 {
@@ -359,41 +394,42 @@ void create_blinking_dot(void)
 }
 
 
-void show_arrow_left(void)
+void show_arrow_left(int32_t v)
 {
-    LV_IMG_DECLARE(arrow_left);  // Declare the image (auto-defined by converter)
-
-    lv_obj_t *img_arrow_left = lv_img_create(mainScreen);     // Create image object
-    lv_img_set_src(img_arrow_left, &arrow_left);                 // Set image source
-    lv_obj_align(img_arrow_left, LV_ALIGN_CENTER, -90, -70);
-    lv_obj_set_style_opa(img_arrow_left, LV_OPA_20, 0);
-    arrow_left_off = img_arrow_left;  // Store the image object for later use
-
+    if(arrow_left_off == NULL) {
+        LV_IMG_DECLARE(arrow_left);  // Declare the image (auto-defined by converter)
+        arrow_left_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(arrow_left_off, &arrow_left);                 // Set image source
+        lv_obj_align(arrow_left_off, LV_ALIGN_CENTER, -90, -70);
+    }
+    lv_obj_set_style_opa(arrow_left_off, v, 0);
 }
 
-void show_arrow_right(void)
+void show_arrow_right(int32_t v)
 {
     LV_IMG_DECLARE(arrow_right);  // Declare the image (auto-defined by converter)
 
-    lv_obj_t *img_arrow_right = lv_img_create(mainScreen);     // Create image object
-    lv_img_set_src(img_arrow_right, &arrow_right);                 // Set image source
-    lv_obj_align(img_arrow_right, LV_ALIGN_CENTER, 90, -70);
-    lv_obj_set_style_opa(img_arrow_right, LV_OPA_20, 0);
-    arrow_right_off = img_arrow_right;  // Store the image object for later use
+    if(arrow_right_off == NULL) {
+        LV_IMG_DECLARE(arrow_right);  // Declare the image (auto-defined by converter)
+        arrow_right_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(arrow_right_off, &arrow_right);                 // Set image source
+        lv_obj_align(arrow_right_off, LV_ALIGN_CENTER, 90, -70);
+    }
+    lv_obj_set_style_opa(arrow_right_off, v, 0);
 }
 
-void show_hazard(void)
+void show_hazard(int32_t v)
 {
-    LV_IMG_DECLARE(hazard);  // Declare the image (auto-defined by converter)
-
-    lv_obj_t *img_hazard = lv_img_create(mainScreen);     // Create image object
-    lv_img_set_src(img_hazard, &hazard);                 // Set image source
-    lv_obj_align(img_hazard, LV_ALIGN_CENTER, 0, -70);
-    lv_obj_set_style_opa(img_hazard, LV_OPA_20, 0);
-    hazard_off = img_hazard;  // Store the image object for later use
+    if(hazard_off == NULL) {
+        LV_IMG_DECLARE(hazard);  // Declare the image (auto-defined by converter)
+        hazard_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(hazard_off, &hazard);                 // Set image source
+        lv_obj_align(hazard_off, LV_ALIGN_CENTER, 0, -70);
+    }
+    lv_obj_set_style_opa(hazard_off, v, 0);
 }
 
-void show_power(void)
+void show_power(int32_t v)
 {
     LV_IMG_DECLARE(power);  // Declare the image (auto-defined by converter)
 
@@ -403,48 +439,48 @@ void show_power(void)
     lv_obj_set_style_opa(img_power, LV_OPA_COVER, 0);
 }
 
-void show_high_beam(void)
+void show_high_beam(int32_t v)
 {
-    LV_IMG_DECLARE(highBeam);  // Declare the image (auto-defined by converter)
-
-    lv_obj_t *img_highBeam = lv_img_create(mainScreen);     // Create image object
-    lv_img_set_src(img_highBeam, &highBeam);                 // Set image source
-    lv_obj_align(img_highBeam, LV_ALIGN_CENTER, 170, -70);
-    lv_obj_set_style_opa(img_highBeam, LV_OPA_COVER, 0);
-    high_beam_off = img_highBeam;  // Store the image object for later use
+    if(high_beam_off == NULL) {
+        LV_IMG_DECLARE(highBeam);  // Declare the image (auto-defined by converter)
+        high_beam_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(high_beam_off, &highBeam);                 // Set image source
+        lv_obj_align(high_beam_off, LV_ALIGN_CENTER, 170, -70);
+    }
+    lv_obj_set_style_opa(high_beam_off, v, 0);
 }
 
-void show_low_beam(void)
+void show_low_beam(int32_t v)
 {
-    LV_IMG_DECLARE(lowBeam);  // Declare the image (auto-defined by converter)
-
-    lv_obj_t *img_lowBeam = lv_img_create(mainScreen);     // Create image object
-    lv_img_set_src(img_lowBeam, &lowBeam);                 // Set image source
-    lv_obj_align(img_lowBeam, LV_ALIGN_CENTER, 170, 30);
-    lv_obj_set_style_opa(img_lowBeam, LV_OPA_COVER, 0);
-    low_beam_off = img_lowBeam;  // Store the image object for later use
+    if(low_beam_off == NULL) {
+        LV_IMG_DECLARE(lowBeam);  // Declare the image (auto-defined by converter)
+        low_beam_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(low_beam_off, &lowBeam);                 // Set image source
+        lv_obj_align(low_beam_off, LV_ALIGN_CENTER, 170, 30);
+    }
+    lv_obj_set_style_opa(low_beam_off, v, 0);
 }
 
-void show_brake(void)
+void show_brake(int32_t v)
 {
-    LV_IMG_DECLARE(brake);  // Declare the image (auto-defined by converter)
-
-    lv_obj_t *img_brake = lv_img_create(mainScreen);     // Create image object
-    lv_img_set_src(img_brake, &brake);                 // Set image source
-    lv_obj_align(img_brake, LV_ALIGN_CENTER, -170, -70);
-    lv_obj_set_style_opa(img_brake, LV_OPA_COVER, 0);
-    brake_off = img_brake;  // Store the image object for later use
+    if(brake_off == NULL) {
+        LV_IMG_DECLARE(brake);  // Declare the image (auto-defined by converter)
+        brake_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(brake_off, &brake);                 // Set image source
+        lv_obj_align(brake_off, LV_ALIGN_CENTER, -170, -70);
+    }
+    lv_obj_set_style_opa(brake_off, v, 0);
 }
 
 void show_all_icons(void)
 {
-    show_arrow_left(); // Show the left arrow
-    show_arrow_right(); // Show the right arrow
-    show_hazard(); // Show the hazard icon
-    show_power(); // Show the power icon
-    show_high_beam(); // Show the high beam icon
-    show_low_beam(); // Show the low beam icon
-    show_brake(); // Show the brake icon
+    show_arrow_left(50); // Show the left arrow
+    show_arrow_right(50); // Show the right arrow
+    show_hazard(50); // Show the hazard icon
+    show_power(50); // Show the power icon
+    show_high_beam(100); // Show the high beam icon
+    show_low_beam(255); // Show the low beam icon
+    show_brake(50); // Show the brake icon
 }
 
 
@@ -472,6 +508,7 @@ void create_splash_screen(void)
     bmwText = label; // Store the label object for later use
 }
 
+/*
 void fade_in(lv_obj_t * obj) {
     lv_anim_t a;
     lv_anim_init(&a);
@@ -503,6 +540,7 @@ void fade_sequence() {
     fade_out(bmwText);
 
 }
+*/
 
 void show_main_screen(void)
 {
@@ -542,14 +580,17 @@ void show_splash_screen(void)
 
 }
 
-void my_touch_function() 
+/*void my_touch_function()
 {
     // Your custom logic here
     ESP_LOGI(TAG, "Touch area clicked!");
-    if(arrow_off != NULL) {
+    if (arrow_off != NULL)
+    {
         remove_arrow_off(); // Remove the arrow if it exists
         create_blinking_arrow();
-    }else{
+    }
+    else
+    {
         stop_animation();
         show_arrow(); // Show the arrow if it doesn't exist
     }
@@ -562,20 +603,24 @@ static void touch_event_handler(lv_event_t *e)
     if (code == LV_EVENT_CLICKED) {
         my_touch_function();  // Call your function
     }
-}
+}*/
 
 static void touch_event_handler_arrow_left(lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
 
     if (code == LV_EVENT_CLICKED) {
-    if(arrow_left_off != NULL) {
-        remove_arrow_off(); // Remove the arrow if it exists
-        create_blinking_arrow();
-    }else{
-        stop_animation();
-        show_arrow(); // Show the arrow if it doesn't exist
-    }
+        if(!arrow_left_blinking) {
+            if(arrow_right_blinking){
+                stop_animation_arrow_right();
+                show_arrow_right(50); // Show the arrow if it doesn't exist
+            }
+            remove_arrow_left_off(); // Remove the arrow if it exists
+            create_blinking_arrow_left(NULL);
+        }else{
+            stop_animation_arrow_left();
+            show_arrow_left(50); // Show the arrow if it doesn't exist
+        }
     }
 }
 
@@ -583,18 +628,42 @@ static void touch_event_handler_arrow_right(lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     
-    if (code == LV_EVENT_CLICKED) {
 
+    if (code == LV_EVENT_CLICKED) {
+        if(!arrow_right_blinking) {
+            if(arrow_left_blinking){
+                stop_animation_arrow_left();
+                show_arrow_left(50); // Show the arrow if it doesn't exist
+            }
+            remove_arrow_right_off(); // Remove the arrow if it exists
+            create_blinking_arrow_right(NULL);
+        }else{
+            stop_animation_arrow_right();
+            show_arrow_right(50); // Show the arrow if it doesn't exist
+        }
     }
 }
 
 static void touch_event_handler_hazard(lv_event_t *e) 
 {
     lv_event_code_t code = lv_event_get_code(e);
-    
+
     if (code == LV_EVENT_CLICKED) {
-        // Handle hazard touch event
-    }
+          if(!hazard_blinking) {
+                remove_hazard_off(); // Remove the arrow if it exists
+                remove_arrow_left_off();
+                remove_arrow_right_off();
+                crete_blinking_hazard_group(); // Create the hazard group with blinking arrows
+            }else{
+                stop_animation_hazard(); // Stop the hazard animation
+                remove_hazard_off(); // Remove the arrow if it exists
+                remove_arrow_left_off();
+                remove_arrow_right_off();
+                show_hazard(50); // Show the arrow if it doesn't exist
+                show_arrow_right(50); // Show the arrow if it doesn't exist
+                show_arrow_left(50); // Show the arrow if it doesn't exist
+            }
+        }
 }
 
 static void touch_event_handler_power(lv_event_t *e) 
@@ -602,8 +671,8 @@ static void touch_event_handler_power(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     
     if (code == LV_EVENT_CLICKED) {
-        // Handle power touch event
     }
+
 }
 
 static void touch_event_handler_high_beam(lv_event_t *e) 
@@ -611,7 +680,16 @@ static void touch_event_handler_high_beam(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     
     if (code == LV_EVENT_CLICKED) {
-        // Handle high beam touch event
+        if(high_beam_on_flag)
+        {
+            high_beam_on_flag = false;
+            show_low_beam(255); // Show the low beam icon
+            show_high_beam(100); // Hide the high beam icon
+        }else{
+            high_beam_on_flag = true;
+            show_low_beam(50); // Hide the low beam icon
+            show_high_beam(255); // Show the high beam icon
+        }
     }
 }
 
@@ -619,13 +697,18 @@ static void touch_event_handler_brake(lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
     
-    if (code == LV_EVENT_CLICKED) {
+    if (code == LV_EVENT_PRESSED) {
         // Handle brake touch event
+        show_brake(255); // Show the brake icon
+    }else{
+        if(code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) 
+            show_brake(50); // Hide the brake icon
     }
 }
+
 void create_touch_area_arrow_left(void) 
 {
-    lv_obj_t *touch_area_arrow_left = lv_obj_create(lv_scr_act());
+    lv_obj_t *touch_area_arrow_left = lv_obj_create(mainScreen);
     lv_obj_set_size(touch_area_arrow_left, 88, 88);        // Set the size of the touch area
     lv_obj_align(touch_area_arrow_left, LV_ALIGN_CENTER, -90, -70);  // Align to center or custom position
 
@@ -637,7 +720,7 @@ void create_touch_area_arrow_left(void)
 
 void create_touch_area_arrow_right(void) 
 {
-    lv_obj_t *touch_area_arrow_right = lv_obj_create(lv_scr_act());
+    lv_obj_t *touch_area_arrow_right = lv_obj_create(mainScreen);
     lv_obj_set_size(touch_area_arrow_right, 88, 88);        // Set the size of the touch area
     lv_obj_align(touch_area_arrow_right, LV_ALIGN_CENTER, 90, -70);  // Align to center or custom position
 
@@ -649,7 +732,7 @@ void create_touch_area_arrow_right(void)
 
 void create_touch_area_hazard(void) 
 {
-    lv_obj_t *touch_area_hazard = lv_obj_create(lv_scr_act());
+    lv_obj_t *touch_area_hazard = lv_obj_create(mainScreen);
     lv_obj_set_size(touch_area_hazard, 88, 88);        // Set the size of the touch area
     lv_obj_align(touch_area_hazard, LV_ALIGN_CENTER, 0, -70);  // Align to center or custom position
 
@@ -661,7 +744,7 @@ void create_touch_area_hazard(void)
 
 void create_touch_area_power(void) 
 {
-    lv_obj_t *touch_area_power = lv_obj_create(lv_scr_act());
+    lv_obj_t *touch_area_power = lv_obj_create(mainScreen);
     lv_obj_set_size(touch_area_power, 88, 88);        // Set the size of the touch area
     lv_obj_align(touch_area_power, LV_ALIGN_CENTER, -170, 30);  // Align to center or custom position
 
@@ -673,7 +756,7 @@ void create_touch_area_power(void)
 
 void create_touch_area_high_beam(void) 
 {
-    lv_obj_t *touch_area_high_beam = lv_obj_create(lv_scr_act());
+    lv_obj_t *touch_area_high_beam = lv_obj_create(mainScreen);
     lv_obj_set_size(touch_area_high_beam, 88, 88);        // Set the size of the touch area
     lv_obj_align(touch_area_high_beam, LV_ALIGN_CENTER, 170, -70);  // Align to center or custom position
 
@@ -685,7 +768,7 @@ void create_touch_area_high_beam(void)
 
 void create_touch_area_brake(void) 
 {
-    lv_obj_t *touch_area_brake = lv_obj_create(lv_scr_act());
+    lv_obj_t *touch_area_brake = lv_obj_create(mainScreen );
     lv_obj_set_size(touch_area_brake, 88, 88);        // Set the size of the touch area
     lv_obj_align(touch_area_brake, LV_ALIGN_CENTER, -170, -70);  // Align to center or custom position
 
