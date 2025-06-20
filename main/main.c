@@ -24,6 +24,7 @@ static const char *TAG = "example";
 static SemaphoreHandle_t lvgl_mux = NULL;
 
 #define LCD_HOST    SPI2_HOST
+#define LED_HOST    SPI3_HOST
 
 
 #if CONFIG_LV_COLOR_DEPTH == 32
@@ -35,29 +36,35 @@ void esp_draw_bitmap(uint16_t clorck,esp_lcd_panel_handle_t panel_handle);
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////// Please update the following configuration according to your LCD spec //////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-#define EXAMPLE_LCD_BK_LIGHT_ON_LEVEL  1
-#define EXAMPLE_LCD_BK_LIGHT_OFF_LEVEL !EXAMPLE_LCD_BK_LIGHT_ON_LEVEL
-#define EXAMPLE_PIN_NUM_LCD_CS            (GPIO_NUM_6)
-#define EXAMPLE_PIN_NUM_LCD_PCLK          (GPIO_NUM_47) 
-#define EXAMPLE_PIN_NUM_LCD_DATA0         (GPIO_NUM_18)
-#define EXAMPLE_PIN_NUM_LCD_DATA1         (GPIO_NUM_7)
-#define EXAMPLE_PIN_NUM_LCD_DATA2         (GPIO_NUM_48)
-#define EXAMPLE_PIN_NUM_LCD_DATA3         (GPIO_NUM_5)
-#define EXAMPLE_PIN_NUM_LCD_RST           (GPIO_NUM_17)
-#define EXAMPLE_PIN_NUM_BK_LIGHT          (-1)
+#define LCD_BK_LIGHT_ON_LEVEL  1
+#define LCD_BK_LIGHT_OFF_LEVEL !LCD_BK_LIGHT_ON_LEVEL
+#define PIN_NUM_LCD_CS            (GPIO_NUM_6)
+#define PIN_NUM_LCD_PCLK          (GPIO_NUM_47) 
+#define PIN_NUM_LCD_DATA0         (GPIO_NUM_18)
+#define PIN_NUM_LCD_DATA1         (GPIO_NUM_7)
+#define PIN_NUM_LCD_DATA2         (GPIO_NUM_48)
+#define PIN_NUM_LCD_DATA3         (GPIO_NUM_5)
+#define PIN_NUM_LCD_RST           (GPIO_NUM_17)
+#define PIN_NUM_BK_LIGHT          (-1)
+
+#define PIN_NUM_LED_MISO         (GPIO_NUM_11)
+#define PIN_NUM_LED_MOSI         (GPIO_NUM_12)
+#define PIN_NUM_LED_CLK          (GPIO_NUM_13)
+#define PIN_NUM_LED_CS           (GPIO_NUM_14)
+
 
 // The pixel number in horizontal and vertical
-#define EXAMPLE_LCD_H_RES              536
-#define EXAMPLE_LCD_V_RES              240
+#define LCD_H_RES              536
+#define LCD_V_RES              240
 
-#define EXAMPLE_USE_TOUCH               1
+#define USE_TOUCH               1
 
-#define EXAMPLE_LVGL_BUF_HEIGHT        (EXAMPLE_LCD_V_RES / 4)
-#define EXAMPLE_LVGL_TICK_PERIOD_MS    2
-#define EXAMPLE_LVGL_TASK_MAX_DELAY_MS 500
-#define EXAMPLE_LVGL_TASK_MIN_DELAY_MS 1
-#define EXAMPLE_LVGL_TASK_STACK_SIZE   (4 * 1024)
-#define EXAMPLE_LVGL_TASK_PRIORITY     2
+#define LVGL_BUF_HEIGHT        (LCD_V_RES / 4)
+#define LVGL_TICK_PERIOD_MS    2
+#define LVGL_TASK_MAX_DELAY_MS 500
+#define LVGL_TASK_MIN_DELAY_MS 1
+#define LVGL_TASK_STACK_SIZE   (4 * 1024)
+#define LVGL_TASK_PRIORITY     2
 
 static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = {
 
@@ -73,14 +80,14 @@ static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = {
     {0x51, (uint8_t []){0xFF}, 1, 0},
 };
 
-static bool example_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
+static bool notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t *edata, void *user_ctx)
 {
     lv_disp_drv_t *disp_driver = (lv_disp_drv_t *)user_ctx;
     lv_disp_flush_ready(disp_driver);
     return false;
 }
 
-static void example_lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
+static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_map)
 {
     esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t) drv->user_data;
     const int offsetx1 = area->x1 ;
@@ -139,7 +146,7 @@ bool hazard_blinking = false;
 
 
 /* Rotate display and touch, when rotated screen in LVGL. Called when driver parameters are updated. */
-static void example_lvgl_update_cb(lv_disp_drv_t *drv)
+static void lvgl_update_cb(lv_disp_drv_t *drv)
 {
     esp_lcd_panel_handle_t panel_handle = (esp_lcd_panel_handle_t) drv->user_data;
 
@@ -167,7 +174,7 @@ static void example_lvgl_update_cb(lv_disp_drv_t *drv)
     }
 }
 
-void example_lvgl_rounder_cb(struct _lv_disp_drv_t *disp_drv, lv_area_t *area)
+void lvgl_rounder_cb(struct _lv_disp_drv_t *disp_drv, lv_area_t *area)
 {
     uint16_t x1 = area->x1;
     uint16_t x2 = area->x2;
@@ -183,8 +190,8 @@ void example_lvgl_rounder_cb(struct _lv_disp_drv_t *disp_drv, lv_area_t *area)
     area->y2 = ((y2 >> 1) << 1) + 1;
 }
 
-#if EXAMPLE_USE_TOUCH
-static void example_lvgl_touch_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
+#if USE_TOUCH
+static void lvgl_touch_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
 {
     uint16_t tp_x,tp_y;
     uint8_t win;
@@ -202,13 +209,13 @@ static void example_lvgl_touch_cb(lv_indev_drv_t *drv, lv_indev_data_t *data)
 }
 #endif
 
-static void example_increase_lvgl_tick(void *arg)
+static void increase_lvgl_tick(void *arg)
 {
     /* Tell LVGL how many milliseconds has elapsed */
-    lv_tick_inc(EXAMPLE_LVGL_TICK_PERIOD_MS);
+    lv_tick_inc(LVGL_TICK_PERIOD_MS);
 }
 
-static bool example_lvgl_lock(int timeout_ms)
+static bool lvgl_lock(int timeout_ms)
 {
     assert(lvgl_mux && "bsp_display_start must be called first");
 
@@ -216,27 +223,27 @@ static bool example_lvgl_lock(int timeout_ms)
     return xSemaphoreTake(lvgl_mux, timeout_ticks) == pdTRUE;
 }
 
-static void example_lvgl_unlock(void)
+static void lvgl_unlock(void)
 {
     assert(lvgl_mux && "bsp_display_start must be called first");
     xSemaphoreGive(lvgl_mux);
 }
 
-static void example_lvgl_port_task(void *arg)
+static void lvgl_port_task(void *arg)
 {
     ESP_LOGI(TAG, "Starting LVGL task");
-    uint32_t task_delay_ms = EXAMPLE_LVGL_TASK_MAX_DELAY_MS;
+    uint32_t task_delay_ms = LVGL_TASK_MAX_DELAY_MS;
     while (1) {
         // Lock the mutex due to the LVGL APIs are not thread-safe
-        if (example_lvgl_lock(-1)) {
+        if (lvgl_lock(-1)) {
             task_delay_ms = lv_timer_handler();
             // Release the mutex
-            example_lvgl_unlock();
+            lvgl_unlock();
         }
-        if (task_delay_ms > EXAMPLE_LVGL_TASK_MAX_DELAY_MS) {
-            task_delay_ms = EXAMPLE_LVGL_TASK_MAX_DELAY_MS;
-        } else if (task_delay_ms < EXAMPLE_LVGL_TASK_MIN_DELAY_MS) {
-            task_delay_ms = EXAMPLE_LVGL_TASK_MIN_DELAY_MS;
+        if (task_delay_ms > LVGL_TASK_MAX_DELAY_MS) {
+            task_delay_ms = LVGL_TASK_MAX_DELAY_MS;
+        } else if (task_delay_ms < LVGL_TASK_MIN_DELAY_MS) {
+            task_delay_ms = LVGL_TASK_MIN_DELAY_MS;
         }
         vTaskDelay(pdMS_TO_TICKS(task_delay_ms));
     }
@@ -793,28 +800,53 @@ void app_main(void)
     static lv_disp_draw_buf_t disp_buf; // contains internal graphic buffer(s) called draw buffer(s)
     static lv_disp_drv_t disp_drv;      // contains callback functions
 
-#if EXAMPLE_PIN_NUM_BK_LIGHT >= 0
+#if PIN_NUM_BK_LIGHT >= 0
     ESP_LOGI(TAG, "Turn off LCD backlight");
     gpio_config_t bk_gpio_config = {
         .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = 1ULL << EXAMPLE_PIN_NUM_BK_LIGHT
+        .pin_bit_mask = 1ULL << PIN_NUM_BK_LIGHT
     };
     ESP_ERROR_CHECK(gpio_config(&bk_gpio_config));
 #endif
 
-    ESP_LOGI(TAG, "Initialize SPI bus");
-    const spi_bus_config_t buscfg = SH8601_PANEL_BUS_QSPI_CONFIG(EXAMPLE_PIN_NUM_LCD_PCLK,
-                                                                 EXAMPLE_PIN_NUM_LCD_DATA0,
-                                                                 EXAMPLE_PIN_NUM_LCD_DATA1,
-                                                                 EXAMPLE_PIN_NUM_LCD_DATA2,
-                                                                 EXAMPLE_PIN_NUM_LCD_DATA3,
-                                                                 EXAMPLE_LCD_H_RES * EXAMPLE_LCD_V_RES * LCD_BIT_PER_PIXEL / 8);
-    ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &buscfg, SPI_DMA_CH_AUTO));
+    ESP_LOGI(TAG, "Initialize LCD SPI bus");
+    const spi_bus_config_t lcdbuscfg = SH8601_PANEL_BUS_QSPI_CONFIG(PIN_NUM_LCD_PCLK,
+                                                                 PIN_NUM_LCD_DATA0,
+                                                                 PIN_NUM_LCD_DATA1,
+                                                                 PIN_NUM_LCD_DATA2,
+                                                                 PIN_NUM_LCD_DATA3,
+                                                                 LCD_H_RES * LCD_V_RES * LCD_BIT_PER_PIXEL / 8);
+    ESP_ERROR_CHECK(spi_bus_initialize(LCD_HOST, &lcdbuscfg, SPI_DMA_CH_AUTO));
+
+    ESP_LOGI(TAG, "Initialize LED SPI bus");
+    const spi_bus_config_t ledbuscfg = {
+        .miso_io_num = PIN_NUM_LED_MISO,
+        .mosi_io_num = PIN_NUM_LED_MOSI,
+        .sclk_io_num = PIN_NUM_LED_CLK,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .max_transfer_sz = 4096
+    };
+
+    spi_device_interface_config_t led_spi_cfg = {
+        .mode = 0,
+        .queue_size = 7,
+        .spics_io_num = PIN_NUM_LED_CS,
+        .clock_speed_hz = 1000000// 1 MHz
+    };
+
+    spi_device_handle_t led_spi_handle = NULL;
+
+    ESP_ERROR_CHECK(spi_bus_initialize(LED_HOST, &ledbuscfg, SPI_DMA_CH_AUTO));
+    ESP_ERROR_CHECK(spi_bus_add_device(LED_HOST, &led_spi_cfg, &led_spi_handle));
+
+  
+
 
     ESP_LOGI(TAG, "Install panel IO");
     esp_lcd_panel_io_handle_t io_handle = NULL;
-    const esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(EXAMPLE_PIN_NUM_LCD_CS,
-                                                                                example_notify_lvgl_flush_ready,
+    const esp_lcd_panel_io_spi_config_t io_config = SH8601_PANEL_IO_QSPI_CONFIG(PIN_NUM_LCD_CS,
+                                                                                notify_lvgl_flush_ready,
                                                                                 &disp_drv);
     sh8601_vendor_config_t vendor_config = {
         .init_cmds = lcd_init_cmds,
@@ -828,7 +860,7 @@ void app_main(void)
 
     esp_lcd_panel_handle_t panel_handle = NULL;
     const esp_lcd_panel_dev_config_t panel_config = {
-        .reset_gpio_num = EXAMPLE_PIN_NUM_LCD_RST,
+        .reset_gpio_num = PIN_NUM_LCD_RST,
         .rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB,
         .bits_per_pixel = LCD_BIT_PER_PIXEL,
         .vendor_config = &vendor_config,
@@ -840,32 +872,32 @@ void app_main(void)
     // user can flush pre-defined pattern to the screen before we turn on the screen or backlight
     ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_handle, true));
     I2C_master_Init(); //I2C Init
-#if EXAMPLE_USE_TOUCH
+#if USE_TOUCH
     touch_Init();
 #endif
 
-#if EXAMPLE_PIN_NUM_BK_LIGHT >= 0
+#if PIN_NUM_BK_LIGHT >= 0
     ESP_LOGI(TAG, "Turn on LCD backlight");
-    gpio_set_level(EXAMPLE_PIN_NUM_BK_LIGHT, EXAMPLE_LCD_BK_LIGHT_ON_LEVEL);
+    gpio_set_level(PIN_NUM_BK_LIGHT, LCD_BK_LIGHT_ON_LEVEL);
 #endif
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
     // alloc draw buffers used by LVGL
     // it's recommended to choose the size of the draw buffer(s) to be at least 1/10 screen sized
-    lv_color_t *buf1 = heap_caps_malloc(EXAMPLE_LCD_H_RES * EXAMPLE_LVGL_BUF_HEIGHT * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    lv_color_t *buf1 = heap_caps_malloc(LCD_H_RES * LVGL_BUF_HEIGHT * sizeof(lv_color_t), MALLOC_CAP_DMA);
     assert(buf1);
-    lv_color_t *buf2 = heap_caps_malloc(EXAMPLE_LCD_H_RES * EXAMPLE_LVGL_BUF_HEIGHT * sizeof(lv_color_t), MALLOC_CAP_DMA);
+    lv_color_t *buf2 = heap_caps_malloc(LCD_H_RES * LVGL_BUF_HEIGHT * sizeof(lv_color_t), MALLOC_CAP_DMA);
     assert(buf2);
     // initialize LVGL draw buffers
-    lv_disp_draw_buf_init(&disp_buf, buf1, buf2, EXAMPLE_LCD_H_RES * EXAMPLE_LVGL_BUF_HEIGHT);
+    lv_disp_draw_buf_init(&disp_buf, buf1, buf2, LCD_H_RES * LVGL_BUF_HEIGHT);
 
     ESP_LOGI(TAG, "Register display driver to LVGL");
     lv_disp_drv_init(&disp_drv);
-    disp_drv.hor_res = EXAMPLE_LCD_H_RES;
-    disp_drv.ver_res = EXAMPLE_LCD_V_RES;
-    disp_drv.flush_cb = example_lvgl_flush_cb;
-    disp_drv.rounder_cb = example_lvgl_rounder_cb;
-    disp_drv.drv_update_cb = example_lvgl_update_cb;
+    disp_drv.hor_res = LCD_H_RES;
+    disp_drv.ver_res = LCD_V_RES;
+    disp_drv.flush_cb = lvgl_flush_cb;
+    disp_drv.rounder_cb = lvgl_rounder_cb;
+    disp_drv.drv_update_cb = lvgl_update_cb;
     disp_drv.draw_buf = &disp_buf;
     disp_drv.user_data = panel_handle;
     lv_disp_t *disp = lv_disp_drv_register(&disp_drv);
@@ -877,29 +909,29 @@ void app_main(void)
     ESP_LOGI(TAG, "Install LVGL tick timer");
     // Tick interface for LVGL (using esp_timer to generate 2ms periodic event)
     const esp_timer_create_args_t lvgl_tick_timer_args = {
-        .callback = &example_increase_lvgl_tick,
+        .callback = &increase_lvgl_tick,
         .name = "lvgl_tick"
     };
     esp_timer_handle_t lvgl_tick_timer = NULL;
     ESP_ERROR_CHECK(esp_timer_create(&lvgl_tick_timer_args, &lvgl_tick_timer));
-    ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer, EXAMPLE_LVGL_TICK_PERIOD_MS * 1000));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(lvgl_tick_timer, LVGL_TICK_PERIOD_MS * 1000));
 
-#if EXAMPLE_USE_TOUCH
+#if USE_TOUCH
     static lv_indev_drv_t indev_drv;    // Input device driver (Touch)
     lv_indev_drv_init(&indev_drv);
     indev_drv.type = LV_INDEV_TYPE_POINTER;
     indev_drv.disp = disp;
-    indev_drv.read_cb = example_lvgl_touch_cb;
+    indev_drv.read_cb = lvgl_touch_cb;
     lv_indev_drv_register(&indev_drv);
 #endif
 
     lvgl_mux = xSemaphoreCreateMutex();
     assert(lvgl_mux);
-    xTaskCreate(example_lvgl_port_task, "LVGL", EXAMPLE_LVGL_TASK_STACK_SIZE, NULL, EXAMPLE_LVGL_TASK_PRIORITY, NULL);
+    xTaskCreate(lvgl_port_task, "LVGL", LVGL_TASK_STACK_SIZE, NULL, LVGL_TASK_PRIORITY, NULL);
 
     ESP_LOGI(TAG, "Display LVGL demos");
     // Lock the mutex due to the LVGL APIs are not thread-safe
-    if (example_lvgl_lock(-1)) {
+    if (lvgl_lock(-1)) {
         
         //setup_ui(&guider_ui);
    	    //events_init(&guider_ui);
@@ -921,6 +953,6 @@ void app_main(void)
         //create_blinking_arrow();
 
 
-        example_lvgl_unlock();
+        lvgl_unlock();
     }
 }

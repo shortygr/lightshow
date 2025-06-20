@@ -8,7 +8,6 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 include_directories(${CMAKE_SOURCE_DIR}/src)
 include_directories(${CMAKE_SOURCE_DIR}/components)
 
-
 add_compile_options("-Wno-format")
 project(lightshow)
 
