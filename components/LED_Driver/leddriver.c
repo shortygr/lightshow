@@ -25,7 +25,7 @@
  * BSD license, all text above must be included in any redistribution
  */
 
-#include <leddriver.hpp>
+#include "leddriver.h"
 #include <string.h>
 
 /*!
@@ -37,21 +37,24 @@
  *  @param  d
  *          data pin
  */
-TLC59711::TLC59711(spi_device_handle_t spi) {
+bool TLC59711_begin(struct TLC59711 *ledDriverParameter, spi_device_handle_t spi) {
 
-
-  BCr = BCg = BCb = 0x7F; // default 100% brigthness
-
-  pwmbuffer = (uint16_t *)calloc(2, 12);
-
-  _spi_dev = spi;
+  ledDriverParameter->BCr = 0x7f 
+  ledDriverParameter->BCg = 0x7f;
+  ledDriverParameter->BCb = 0x7f; // default 100%
+  ledDriverParameter->pwmbuffer = (uint16_t *)calloc(2, 12);
+  ledDriverParameter->_spi_dev = spi;
+  if (!pwmbuffer)
+    return false;
+  else
+    return true  
 }
 
 
 /*!
  *  @brief  Writes PWM buffer to board
  */
-void TLC59711::write() {
+void TLC59711_write(struct TLC59711 *ledDriverParameter) {
     uint8_t bufferSize = TLC59711_NUM_CHANNELS * 2 + 4; // 12 channels * 2 bytes + 4 bytes for command
     uint8_t data_to_send[bufferSize];
     uint8_t data_received;
@@ -101,10 +104,10 @@ void TLC59711::write() {
  *  @param  pwm
  *          pwm value
  */
-void Adafruit_TLC59711::setPWM(uint16_t chan, uint16_t pwm) {
-  if (chan > 12 * numdrivers)
+void TLC59711_setPWM(struct TLC59711 *ledDriverParameter,uint16_t chan, uint16_t pwm) {
+  if (chan > 12)
     return;
-  pwmbuffer[chan] = pwm;
+  ledDriverParameter->pwmbuffer[chan] = pwm;
 }
 
 /*!
@@ -118,7 +121,7 @@ void Adafruit_TLC59711::setPWM(uint16_t chan, uint16_t pwm) {
  *  @param b
  *          blue value
  */
-void Adafruit_TLC59711::setLED(uint8_t lednum, uint16_t r, uint16_t g,
+void TLC59711_setLED(struct TLC59711 *ledDriverParameter, uint8_t lednum, uint16_t r, uint16_t g,
                                uint16_t b) {
   setPWM(lednum * 3, r);
   setPWM(lednum * 3 + 1, g);
@@ -136,11 +139,11 @@ void Adafruit_TLC59711::setLED(uint8_t lednum, uint16_t r, uint16_t g,
  *  @param b
  *          blue value
  */
-void Adafruit_TLC59711::getLED(uint8_t lednum, uint16_t &r, uint16_t &g,
+void TLC59711_getLED(struct TLC59711 *ledDriverParameter, uint8_t lednum, uint16_t &r, uint16_t &g,
                                uint16_t &b) {
-  r = pwmbuffer[lednum * 3];
-  g = pwmbuffer[lednum * 3 + 1];
-  b = pwmbuffer[lednum * 3 + 2];
+  r = ledDriverParameter->pwmbuffer[lednum * 3];
+  g = ledDriverParameter->pwmbuffer[lednum * 3 + 1];
+  b = ledDriverParameter->pwmbuffer[lednum * 3 + 2];
 }
 
 /*!
@@ -148,14 +151,13 @@ void Adafruit_TLC59711::getLED(uint8_t lednum, uint16_t &r, uint16_t &g,
  *  @param  BC
  *          Brightness Control value
  */
-void Adafruit_TLC59711::simpleSetBrightness(uint8_t BC) {
+void TLC59711_simpleSetBrightness(struct TLC59711 *ledDriverParameter, uint8_t BC) {
   if (BC > 127) {
     BC = 127; // maximum possible value since BC can only be 7 bit
   } else if (BC < 0) {
     BC = 0;
   }
-
-  BCr = BCg = BCb = BC;
+  ledDriverParameter->BCr = ledDriverParameter->BCg = ledDriverParameter->BCb = BC;
 }
 
 /*!
@@ -167,14 +169,14 @@ void Adafruit_TLC59711::simpleSetBrightness(uint8_t BC) {
  *  @param  bcb
  *          Brightness Control Blue value
  */
-void Adafruit_TLC59711::setBrightness(uint8_t bcr, uint8_t bcg, uint8_t bcb) {
+void TLC59711_setBrightness(struct TLC59711 *ledDriverParameter, uint8_t bcr, uint8_t bcg, uint8_t bcb) {
   if (bcr > 127) {
     bcr = 127; // maximum possible value since BC can only be 7 bit
   } else if (bcr < 0) {
     bcr = 0;
   }
 
-  BCr = bcr;
+  ledDriverParameter->BCr = bcr;
 
   if (bcg > 127) {
     bcg = 127; // maximum possible value since BC can only be 7 bit
@@ -182,7 +184,7 @@ void Adafruit_TLC59711::setBrightness(uint8_t bcr, uint8_t bcg, uint8_t bcb) {
     bcg = 0;
   }
 
-  BCg = bcg;
+  ledDriverParameter->BCg = bcg;
 
   if (bcb > 127) {
     bcb = 127; // maximum possible value since BC can only be 7 bit
@@ -190,16 +192,6 @@ void Adafruit_TLC59711::setBrightness(uint8_t bcr, uint8_t bcg, uint8_t bcb) {
     bcb = 0;
   }
 
-  BCb = bcb;
+  ledDriverParameter->BCb = bcb;
 }
 
-/*!
- *  @brief  Begins SPI connection if there is not empty PWM buffer
- *  @return If successful returns true, otherwise false
- */
-bool Adafruit_TLC59711::begin() {
-  if (!pwmbuffer)
-    return false;
-
-  return _spi_dev->begin();
-}

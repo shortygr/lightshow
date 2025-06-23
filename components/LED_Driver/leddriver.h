@@ -21,7 +21,7 @@
 
 #ifndef _ADAFRUIT_TLC59711_H
 #define _ADAFRUIT_TLC59711_H
-#include <spi_master.h>
+#include "driver/spi_master.h"
 
 #define TLC59711_NUM_CHANNELS 12 // Number of channels per driver
 
@@ -29,29 +29,21 @@
  *  @brief  Class that stores state and functions for interacting with
  *          TLC59711 Senor
  */
-class TLC59711 {
-public:
-  TLC59711(spi_device_handle_t spi);
-  ~TLC59711() {
-    if (pwmbuffer) {
-      free(pwmbuffer);
-      pwmbuffer = NULL;
-    }
-  }
+bool TLC59711_begin();
 
-  bool begin();
+void TLC59711_setPWM(struct TLC59711 *ledDriverParameter, uint16_t chan, uint16_t pwm);
+void TLC59711_setLED(struct TLC59711 *ledDriverParameter, uint8_t lednum, uint16_t r, uint16_t g, uint16_t b);
+void TLC59711_getLED(struct TLC59711 *ledDriverParameter, uint8_t lednum, uint16_t &r, uint16_t &g, uint16_t &b);
+void TLC59711_write(struct TLC59711 *ledDriverParameter, );
+void TLC59711_setBrightness(struct TLC59711 *ledDriverParameter, uint8_t bcr, uint8_t bcg, uint8_t bcb);
+void TLC59711_simpleSetBrightness(struct TLC59711 *ledDriverParameter, uint8_t BC);
 
-  void setPWM(uint16_t chan, uint16_t pwm);
-  void setLED(uint8_t lednum, uint16_t r, uint16_t g, uint16_t b);
-  void getLED(uint8_t lednum, uint16_t &r, uint16_t &g, uint16_t &b);
-  void write();
-  void setBrightness(uint8_t bcr, uint8_t bcg, uint8_t bcb);
-  void simpleSetBrightness(uint8_t BC);
 
-private:
-  uint16_t *pwmbuffer = NULL;
-
-  uint8_t BCr = 0, BCg = 0, BCb = 0;
+struct  TLC59711{
+  uint16_t *pwmbuffer;
+  uint8_t BCr;
+  uint8_t BCg;
+  uint8_t  BCb;
   spi_device_handle_t _spi_dev;
 };
 
