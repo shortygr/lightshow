@@ -24,6 +24,8 @@
 static const char *TAG = "example";
 static SemaphoreHandle_t lvgl_mux = NULL;
 
+TLC59711 ledDriverParameter;
+
 #define LCD_HOST    SPI2_HOST
 #define LED_HOST    SPI3_HOST
 
@@ -800,7 +802,7 @@ void app_main(void)
 {
     static lv_disp_draw_buf_t disp_buf; // contains internal graphic buffer(s) called draw buffer(s)
     static lv_disp_drv_t disp_drv;      // contains callback functions
-    TLC59711 ledDriver
+    TLC59711 ledDriver;
 
 #if PIN_NUM_BK_LIGHT >= 0
     ESP_LOGI(TAG, "Turn off LCD backlight");
@@ -842,7 +844,9 @@ void app_main(void)
     ESP_ERROR_CHECK(spi_bus_initialize(LED_HOST, &ledbuscfg, SPI_DMA_CH_AUTO));
     ESP_ERROR_CHECK(spi_bus_add_device(LED_HOST, &led_spi_cfg, &led_spi_handle));
 
-  
+    TLC59711_begin(&ledDriver, led_spi_handle);
+    TLC59711_setPWM(&ledDriver, 5, 65535);
+    TLC59711_write(&ledDriver);
 
 
     ESP_LOGI(TAG, "Install panel IO");

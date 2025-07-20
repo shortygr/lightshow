@@ -37,27 +37,27 @@
  *  @param  d
  *          data pin
  */
-bool TLC59711_begin(struct TLC59711 *ledDriverParameter, spi_device_handle_t spi) {
+bool TLC59711_begin(TLC59711 *ledDriverParameter, spi_device_handle_t spi) {
 
-  ledDriverParameter->BCr = 0x7f 
+  ledDriverParameter->BCr = 0x7f;
   ledDriverParameter->BCg = 0x7f;
   ledDriverParameter->BCb = 0x7f; // default 100%
   ledDriverParameter->pwmbuffer = (uint16_t *)calloc(2, 12);
   ledDriverParameter->_spi_dev = spi;
-  if (!pwmbuffer)
+  if (!ledDriverParameter->pwmbuffer)
     return false;
   else
-    return true  
+    return true;  
 }
 
 
 /*!
  *  @brief  Writes PWM buffer to board
  */
-void TLC59711_write(struct TLC59711 *ledDriverParameter) {
+void TLC59711_write(TLC59711 *ledDriverParameter) {
     uint8_t bufferSize = TLC59711_NUM_CHANNELS * 2 + 4; // 12 channels * 2 bytes + 4 bytes for command
     uint8_t data_to_send[bufferSize];
-    uint8_t data_received;
+//    uint8_t data_received;
     uint32_t command;
 
     // Magic word for write
@@ -68,13 +68,13 @@ void TLC59711_write(struct TLC59711 *ledDriverParameter) {
     command |= 0x16;
 
     command <<= 7;
-    command |= BCr;
+    command |=  ledDriverParameter->BCr;
 
     command <<= 7;
-    command |= BCg;
+    command |=  ledDriverParameter->BCg;
 
     command <<= 7;
-    command |= BCb;
+    command |=  ledDriverParameter->BCb;
 
     spi_transaction_t spiTransaction;
     memset(&spiTransaction, 0, sizeof(spiTransaction));
@@ -89,12 +89,12 @@ void TLC59711_write(struct TLC59711 *ledDriverParameter) {
     // 12 channels per TLC59711
     for (int8_t c = 11; c >= 0; c--) {
       // 16 bits per channel, send MSB first
-      data_to_send[bufferSize - (2 * (c+1))]=(pwmbuffer[c] >> 8);
-      data_to_send[bufferSize - (2 * (c+1) + 1)]=pwmbuffer[c];
+      data_to_send[bufferSize - (2 * (c+1))]=( ledDriverParameter->pwmbuffer[c] >> 8);
+      data_to_send[bufferSize - (2 * (c+1) + 1)]= ledDriverParameter->pwmbuffer[c];
     }
   
     spiTransaction.tx_buffer = data_to_send;
-    spi_device_transmit(_spi_dev, &spiTransaction); 
+    spi_device_transmit( ledDriverParameter->_spi_dev, &spiTransaction); 
 }
 
 /*!
@@ -104,7 +104,7 @@ void TLC59711_write(struct TLC59711 *ledDriverParameter) {
  *  @param  pwm
  *          pwm value
  */
-void TLC59711_setPWM(struct TLC59711 *ledDriverParameter,uint16_t chan, uint16_t pwm) {
+void TLC59711_setPWM(TLC59711 *ledDriverParameter,uint16_t chan, uint16_t pwm) {
   if (chan > 12)
     return;
   ledDriverParameter->pwmbuffer[chan] = pwm;
@@ -121,11 +121,11 @@ void TLC59711_setPWM(struct TLC59711 *ledDriverParameter,uint16_t chan, uint16_t
  *  @param b
  *          blue value
  */
-void TLC59711_setLED(struct TLC59711 *ledDriverParameter, uint8_t lednum, uint16_t r, uint16_t g,
+void TLC59711_setLED(TLC59711 *ledDriverParameter, uint8_t lednum, uint16_t r, uint16_t g,
                                uint16_t b) {
-  setPWM(lednum * 3, r);
-  setPWM(lednum * 3 + 1, g);
-  setPWM(lednum * 3 + 2, b);
+  TLC59711_setPWM(ledDriverParameter,lednum * 3, r);
+  TLC59711_setPWM(ledDriverParameter,lednum * 3 + 1, g);
+  TLC59711_setPWM(ledDriverParameter,lednum * 3 + 2, b);
 }
 
 /*!
@@ -138,24 +138,24 @@ void TLC59711_setLED(struct TLC59711 *ledDriverParameter, uint8_t lednum, uint16
  *          green value
  *  @param b
  *          blue value
- */
-void TLC59711_getLED(struct TLC59711 *ledDriverParameter, uint8_t lednum, uint16_t &r, uint16_t &g,
-                               uint16_t &b) {
+ 
+void TLC59711_getLED( TLC59711 *ledDriverParameter, uint8_t lednum, uint16_t r, uint16_t g,uint16_t b) {
   r = ledDriverParameter->pwmbuffer[lednum * 3];
   g = ledDriverParameter->pwmbuffer[lednum * 3 + 1];
   b = ledDriverParameter->pwmbuffer[lednum * 3 + 2];
 }
+*/
+
+
 
 /*!
  *  @brief  Set the brightness of LED channels to same value
  *  @param  BC
  *          Brightness Control value
  */
-void TLC59711_simpleSetBrightness(struct TLC59711 *ledDriverParameter, uint8_t BC) {
+void TLC59711_simpleSetBrightness(TLC59711 *ledDriverParameter, uint8_t BC) {
   if (BC > 127) {
     BC = 127; // maximum possible value since BC can only be 7 bit
-  } else if (BC < 0) {
-    BC = 0;
   }
   ledDriverParameter->BCr = ledDriverParameter->BCg = ledDriverParameter->BCb = BC;
 }
@@ -169,28 +169,21 @@ void TLC59711_simpleSetBrightness(struct TLC59711 *ledDriverParameter, uint8_t B
  *  @param  bcb
  *          Brightness Control Blue value
  */
-void TLC59711_setBrightness(struct TLC59711 *ledDriverParameter, uint8_t bcr, uint8_t bcg, uint8_t bcb) {
+void TLC59711_setBrightness(TLC59711 *ledDriverParameter, uint8_t bcr, uint8_t bcg, uint8_t bcb) {
   if (bcr > 127) {
     bcr = 127; // maximum possible value since BC can only be 7 bit
-  } else if (bcr < 0) {
-    bcr = 0;
-  }
-
+  } 
   ledDriverParameter->BCr = bcr;
 
   if (bcg > 127) {
     bcg = 127; // maximum possible value since BC can only be 7 bit
-  } else if (bcg < 0) {
-    bcg = 0;
-  }
+  } 
 
   ledDriverParameter->BCg = bcg;
 
   if (bcb > 127) {
     bcb = 127; // maximum possible value since BC can only be 7 bit
-  } else if (bcb < 0) {
-    bcb = 0;
-  }
+  } 
 
   ledDriverParameter->BCb = bcb;
 }
