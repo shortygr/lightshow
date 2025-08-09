@@ -50,10 +50,10 @@ void esp_draw_bitmap(uint16_t clorck,esp_lcd_panel_handle_t panel_handle);
 #define PIN_NUM_LCD_RST           (GPIO_NUM_17)
 #define PIN_NUM_BK_LIGHT          (-1)
 
-#define PIN_NUM_LED_MISO         (GPIO_NUM_11)
-#define PIN_NUM_LED_MOSI         (GPIO_NUM_12)
-#define PIN_NUM_LED_CLK          (GPIO_NUM_13)
-#define PIN_NUM_LED_CS           (GPIO_NUM_14)
+
+#define PIN_NUM_LED_MOSI         (GPIO_NUM_2)
+#define PIN_NUM_LED_CLK          (GPIO_NUM_3)
+
 
 
 // The pixel number in horizontal and vertical
@@ -824,29 +824,60 @@ void app_main(void)
 
     ESP_LOGI(TAG, "Initialize LED SPI bus");
     const spi_bus_config_t ledbuscfg = {
-        .miso_io_num = PIN_NUM_LED_MISO,
+        .miso_io_num = -1,
+        .sclk_io_num = -1,
         .mosi_io_num = PIN_NUM_LED_MOSI,
         .sclk_io_num = PIN_NUM_LED_CLK,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-        .max_transfer_sz = 4096
+        .max_transfer_sz = 28
     };
 
     spi_device_interface_config_t led_spi_cfg = {
         .mode = 0,
-        .queue_size = 7,
-        .spics_io_num = PIN_NUM_LED_CS,
+        .queue_size = 1,
+        .spics_io_num = -1,
         .clock_speed_hz = 1000000// 1 MHz
     };
 
     spi_device_handle_t led_spi_handle = NULL;
 
-    ESP_ERROR_CHECK(spi_bus_initialize(LED_HOST, &ledbuscfg, SPI_DMA_CH_AUTO));
+    ESP_ERROR_CHECK(spi_bus_initialize(LED_HOST, &ledbuscfg, 0));
     ESP_ERROR_CHECK(spi_bus_add_device(LED_HOST, &led_spi_cfg, &led_spi_handle));
 
     TLC59711_begin(&ledDriver, led_spi_handle);
+    TLC59711_setPWM(&ledDriver, 0, 65535);
+    TLC59711_setPWM(&ledDriver, 1, 65535);
+    TLC59711_setPWM(&ledDriver, 2, 65535);
+    TLC59711_setPWM(&ledDriver, 3, 65535);
+    TLC59711_setPWM(&ledDriver, 4, 65535);
     TLC59711_setPWM(&ledDriver, 5, 65535);
+    TLC59711_setPWM(&ledDriver, 6, 65535);
+    TLC59711_setPWM(&ledDriver, 7, 65535);
+    TLC59711_setPWM(&ledDriver, 8, 65535);
+    TLC59711_setPWM(&ledDriver, 9, 65535);
+    TLC59711_setPWM(&ledDriver, 10, 65535);
+    TLC59711_setPWM(&ledDriver, 11, 65535);
     TLC59711_write(&ledDriver);
+    vTaskDelay(500) ;
+    TLC59711_write(&ledDriver);
+    vTaskDelay(500) ;
+    TLC59711_write(&ledDriver);
+    vTaskDelay(500) ;
+    TLC59711_write(&ledDriver);
+    vTaskDelay(500) ;
+    TLC59711_write(&ledDriver);
+    vTaskDelay(500) ;
+    TLC59711_write(&ledDriver);
+    vTaskDelay(500) ;
+    TLC59711_write(&ledDriver);
+    vTaskDelay(500) ;
+    TLC59711_write(&ledDriver);
+    vTaskDelay(500) ;
+    TLC59711_write(&ledDriver);
+    vTaskDelay(500) ;
+    TLC59711_write(&ledDriver);
+
 
 
     ESP_LOGI(TAG, "Install panel IO");
