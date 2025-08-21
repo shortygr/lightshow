@@ -25,6 +25,7 @@ static const char *TAG = "example";
 static SemaphoreHandle_t lvgl_mux = NULL;
 
 TLC59711 ledDriverParameter;
+TLC59711 ledDriver;
 
 #define LCD_HOST    SPI2_HOST
 #define LED_HOST    SPI3_HOST
@@ -51,9 +52,8 @@ void esp_draw_bitmap(uint16_t clorck,esp_lcd_panel_handle_t panel_handle);
 #define PIN_NUM_BK_LIGHT          (-1)
 
 
-#define PIN_NUM_LED_MOSI         (GPIO_NUM_2)
+#define PIN_NUM_LED_MOSI         (GPIO_NUM_4)  
 #define PIN_NUM_LED_CLK          (GPIO_NUM_3)
-
 
 
 // The pixel number in horizontal and vertical
@@ -254,6 +254,9 @@ static void lvgl_port_task(void *arg)
 
 void blink_anim_cb(void * obj, int32_t v) {
     lv_obj_set_style_opa(obj, v, 0); // v goes from 0 to 255
+    TLC59711_setPWM(&ledDriver, 4, v*255);
+    TLC59711_write(&ledDriver);
+
 }
 
 
@@ -802,7 +805,7 @@ void app_main(void)
 {
     static lv_disp_draw_buf_t disp_buf; // contains internal graphic buffer(s) called draw buffer(s)
     static lv_disp_drv_t disp_drv;      // contains callback functions
-    TLC59711 ledDriver;
+
 
 #if PIN_NUM_BK_LIGHT >= 0
     ESP_LOGI(TAG, "Turn off LCD backlight");
@@ -825,7 +828,6 @@ void app_main(void)
     ESP_LOGI(TAG, "Initialize LED SPI bus");
     const spi_bus_config_t ledbuscfg = {
         .miso_io_num = -1,
-        .sclk_io_num = -1,
         .mosi_io_num = PIN_NUM_LED_MOSI,
         .sclk_io_num = PIN_NUM_LED_CLK,
         .quadwp_io_num = -1,
@@ -834,48 +836,35 @@ void app_main(void)
     };
 
     spi_device_interface_config_t led_spi_cfg = {
-        .mode = 0,
+        .clock_speed_hz = 1 * 1000 * 1000, // 8 MHz
+        .mode = 0,                          // SPI mode 0
+        .spics_io_num = -1,                 // no CS
         .queue_size = 1,
-        .spics_io_num = -1,
-        .clock_speed_hz = 1000000// 1 MHz
     };
 
     spi_device_handle_t led_spi_handle = NULL;
 
-    ESP_ERROR_CHECK(spi_bus_initialize(LED_HOST, &ledbuscfg, 0));
+    ESP_LOGI(TAG, "Starting initialize");    
+    ESP_ERROR_CHECK(spi_bus_initialize(LED_HOST, &ledbuscfg, SPI_DMA_CH_AUTO));
+    ESP_LOGI(TAG, "Initialized LED SPI bus");
     ESP_ERROR_CHECK(spi_bus_add_device(LED_HOST, &led_spi_cfg, &led_spi_handle));
+    ESP_LOGI(TAG, "device added");
 
     TLC59711_begin(&ledDriver, led_spi_handle);
-    TLC59711_setPWM(&ledDriver, 0, 65535);
-    TLC59711_setPWM(&ledDriver, 1, 65535);
-    TLC59711_setPWM(&ledDriver, 2, 65535);
-    TLC59711_setPWM(&ledDriver, 3, 65535);
     TLC59711_setPWM(&ledDriver, 4, 65535);
     TLC59711_setPWM(&ledDriver, 5, 65535);
-    TLC59711_setPWM(&ledDriver, 6, 65535);
-    TLC59711_setPWM(&ledDriver, 7, 65535);
-    TLC59711_setPWM(&ledDriver, 8, 65535);
-    TLC59711_setPWM(&ledDriver, 9, 65535);
-    TLC59711_setPWM(&ledDriver, 10, 65535);
-    TLC59711_setPWM(&ledDriver, 11, 65535);
     TLC59711_write(&ledDriver);
     vTaskDelay(500) ;
+    TLC59711_setPWM(&ledDriver, 4, 0);
+    TLC59711_setPWM(&ledDriver, 5, 65535);
     TLC59711_write(&ledDriver);
     vTaskDelay(500) ;
+    TLC59711_setPWM(&ledDriver, 5, 0);
+    TLC59711_setPWM(&ledDriver, 4, 65535);
     TLC59711_write(&ledDriver);
     vTaskDelay(500) ;
-    TLC59711_write(&ledDriver);
-    vTaskDelay(500) ;
-    TLC59711_write(&ledDriver);
-    vTaskDelay(500) ;
-    TLC59711_write(&ledDriver);
-    vTaskDelay(500) ;
-    TLC59711_write(&ledDriver);
-    vTaskDelay(500) ;
-    TLC59711_write(&ledDriver);
-    vTaskDelay(500) ;
-    TLC59711_write(&ledDriver);
-    vTaskDelay(500) ;
+    TLC59711_setPWM(&ledDriver, 4, 0);
+    TLC59711_setPWM(&ledDriver, 5, 65535);
     TLC59711_write(&ledDriver);
 
 

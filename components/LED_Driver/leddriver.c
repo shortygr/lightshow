@@ -63,32 +63,52 @@ void TLC59711_write(TLC59711 *ledDriverParameter) {
 //    uint8_t data_received;
     uint32_t command = 0;
 
-    // Magic word for write
-    command |= (0x25 << 26); // function bits (first 6 bits actually, but aligned here for clarity)
-    command |= (127 << 18);  // BC for Blue
-    command |= (127 << 10);  // BC for Green
-    command |= (127 << 2);   // BC for Red
+    ESP_LOGI(TAGLED, "M1");
 
-    data_to_send[0] =(command >> 24) & 0xFF;
-    data_to_send[1] =(command >> 16) & 0xFF;
-    data_to_send[2] =(command >> 8) & 0xFF;
-    data_to_send[3] =command & 0xFF;
+  // Magic word for write
+    command = 0x25;
+
+    command <<= 5;
+    // OUTTMG = 1, EXTGCK = 0, TMGRST = 1, DSPRPT = 1, BLANK = 0 -> 0x16
+    command |= 0x16;
+
+    command <<= 7;
+    command |= 127;
+
+    command <<= 7;
+    command |= 127;
+
+    command <<= 7;
+    command |= 127;
+
+    data_to_send[0] =(command >> 24);
+    data_to_send[1] =(command >> 16);
+    data_to_send[2] =(command >> 8);
+    data_to_send[3] =command;
+
+
+    ESP_LOGI(TAGLED, "M2");
 
     // 12 channels per TLC59711
     int n = 4;
     for (int8_t ch = 11; ch >= 0; ch--) {
       // 16 bits per channel, send MSB first
-      data_to_send[n]=( ledDriverParameter->pwmbuffer[ch] >> 8) & 0xFF;
+      data_to_send[n]=( ledDriverParameter->pwmbuffer[ch] >> 8);
       n=n+1;
-      data_to_send[n]= ledDriverParameter->pwmbuffer[ch] & 0xFF;
+      data_to_send[n]= ledDriverParameter->pwmbuffer[ch];
       n=n+1;
     }
+
+    
+    ESP_LOGI(TAGLED, "M3");
 
     spi_transaction_t spiTransaction = {
       .length = bufferSize * 8,
       .tx_buffer = data_to_send,
       .flags = 0
     };
+
+    ESP_LOGI(TAGLED, "send data:");
 
     esp_err_t ret = spi_device_transmit( ledDriverParameter->_spi_dev, &spiTransaction);
     if (ret != ESP_OK) {
