@@ -124,7 +124,7 @@ void TLC59711_write(TLC59711 *ledDriverParameter) {
  *          pwm value
  */
 void TLC59711_setPWM(TLC59711 *ledDriverParameter,uint16_t chan, uint16_t pwm) {
-  if (chan > 12)
+  if (chan > 11)
     return;
   ledDriverParameter->pwmbuffer[chan] = pwm;
 }

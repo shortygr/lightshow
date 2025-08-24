@@ -69,6 +69,20 @@ void esp_draw_bitmap(uint16_t clorck,esp_lcd_panel_handle_t panel_handle);
 #define LVGL_TASK_STACK_SIZE   (4 * 1024)
 #define LVGL_TASK_PRIORITY     2
 
+
+#define LED_TI_RL               4
+#define LED_TI_RR               0
+#define LED_TI_FL               7
+#define LED_TI_FR               11
+
+#define LED_RL_1                1
+#define LED_RL_2                3
+
+#define LED_HL                  9
+
+#define LED_HB_1                8
+#define LED_HB_2                10
+
 static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = {
 
     {0x11, (uint8_t []){0x00}, 0, 120},   
@@ -145,6 +159,9 @@ bool high_beam_on_flag = false;
 bool arrow_left_blinking = false;
 bool arrow_right_blinking = false;
 bool hazard_blinking = false;
+
+uint8_t blinkLED = 0;  //1..FL,2..RL,4..FR,8..RR
+bool ledState = false;
 
 
 
@@ -252,11 +269,81 @@ static void lvgl_port_task(void *arg)
     }
 }
 
+void blink_LED_HW(int32_t v)
+{
+    if(!ledState && v>150)
+    {
+        if(blinkLED & 0x01) 
+            TLC59711_setPWM(&ledDriver, LED_TI_FL, 65535);
+        if(blinkLED & 0x02) 
+            TLC59711_setPWM(&ledDriver, LED_TI_RL, 65535);
+        if(blinkLED & 0x04) 
+            TLC59711_setPWM(&ledDriver, LED_TI_FR, 65535);
+        if(blinkLED & 0x08) 
+            TLC59711_setPWM(&ledDriver, LED_TI_RR, 65535);
+        ledState=true;
+        TLC59711_write(&ledDriver);
+    }
+    if(ledState && v<100)
+    {
+        if(blinkLED & 0x01) 
+            TLC59711_setPWM(&ledDriver, LED_TI_FL, 0);
+        if(blinkLED & 0x02) 
+            TLC59711_setPWM(&ledDriver, LED_TI_RL, 0);
+        if(blinkLED & 0x04) 
+            TLC59711_setPWM(&ledDriver, LED_TI_FR, 0);
+        if(blinkLED & 0x08) 
+            TLC59711_setPWM(&ledDriver, LED_TI_RR, 0);
+        ledState=false;
+        TLC59711_write(&ledDriver);
+    }
+}
+
+void fl_LED_HW(bool on)
+{
+    if(on)
+    {
+        TLC59711_setPWM(&ledDriver, LED_HB_1, 65535);
+        TLC59711_setPWM(&ledDriver, LED_HB_2, 65535);
+        TLC59711_setPWM(&ledDriver, LED_HL, 16383);
+    }else{
+        TLC59711_setPWM(&ledDriver, LED_HB_1, 0);
+        TLC59711_setPWM(&ledDriver, LED_HB_2, 0);
+        TLC59711_setPWM(&ledDriver, LED_HL, 32766);
+    }
+    TLC59711_write(&ledDriver);
+}
+
+void bl_LED_HW(bool on)
+{
+    if(on)
+    {
+        TLC59711_setPWM(&ledDriver, LED_RL_1, 65535);
+        TLC59711_setPWM(&ledDriver, LED_RL_2, 65535);
+    }else{
+        TLC59711_setPWM(&ledDriver, LED_RL_1, 8191);
+        TLC59711_setPWM(&ledDriver, LED_RL_2, 8191);
+    }
+    TLC59711_write(&ledDriver);
+}
+
+void blink_LED_HW_off()
+{
+    TLC59711_setPWM(&ledDriver, LED_TI_FL, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_RL, 0); 
+    TLC59711_setPWM(&ledDriver, LED_TI_FR, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_RR, 0);
+    ledState=false;
+    TLC59711_write(&ledDriver);
+}
+
 void blink_anim_cb(void * obj, int32_t v) {
     lv_obj_set_style_opa(obj, v, 0); // v goes from 0 to 255
-    TLC59711_setPWM(&ledDriver, 4, v*255);
-    TLC59711_write(&ledDriver);
+    blink_LED_HW(v);
+}
 
+void blink_anim_cb_back(void * obj, int32_t v) {
+    lv_obj_set_style_opa(obj, v, 0); // v goes from 0 to 255
 }
 
 
@@ -282,12 +369,16 @@ void stop_animation_arrow_left()
 {
     lv_anim_del(arrow_left_off, blink_anim_cb); // Delete the animated object
     arrow_left_blinking = false; // Clear the flag
+    blink_LED_HW_off();
+    blinkLED = 0;
 }
 
 void stop_animation_arrow_right()
 {
     lv_anim_del(arrow_right_off, blink_anim_cb); // Delete the animated object
     arrow_right_blinking = false; // Clear the flag
+    blink_LED_HW_off();
+    blinkLED = 0;
 }
 
 void stop_animation_hazard()
@@ -296,6 +387,8 @@ void stop_animation_hazard()
         lv_anim_timeline_stop(hazard_timeline);
     }
     hazard_blinking = false; // Clear the flag
+    blink_LED_HW_off();
+    blinkLED = 0;
 }
 
 void create_blinking_arrow_left(lv_anim_timeline_t *timeline)
@@ -308,6 +401,7 @@ void create_blinking_arrow_left(lv_anim_timeline_t *timeline)
     }
     // Create an animation to blink the arrow
     lv_anim_t a;
+    blinkLED |= 3;
     lv_anim_init(&a);
     lv_anim_set_var(&a, arrow_left_off);
     lv_anim_set_values(&a, 0, 255); // Fade out to transparent
@@ -333,6 +427,7 @@ void create_blinking_arrow_right(lv_anim_timeline_t *timeline)
     }
     // Create an animation to blink the arrow
     lv_anim_t a;
+    blinkLED |= 12;
     lv_anim_init(&a);
     lv_anim_set_var(&a, arrow_right_off);
     lv_anim_set_values(&a, 0, 255); // Fade out to transparent
@@ -402,7 +497,7 @@ void create_blinking_dot(void)
     lv_anim_set_time(&a, 500);      // 500 ms for one phase
     lv_anim_set_playback_time(&a, 500); // Fade back in
     lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE); // Repeat forever
-    lv_anim_set_exec_cb(&a, blink_anim_cb);
+    lv_anim_set_exec_cb(&a, blink_anim_cb_back);
     lv_anim_start(&a);
 }
 
@@ -698,10 +793,12 @@ static void touch_event_handler_high_beam(lv_event_t *e)
             high_beam_on_flag = false;
             show_low_beam(255); // Show the low beam icon
             show_high_beam(100); // Hide the high beam icon
+            fl_LED_HW(false);
         }else{
             high_beam_on_flag = true;
             show_low_beam(50); // Hide the low beam icon
             show_high_beam(255); // Show the high beam icon
+            fl_LED_HW(true);
         }
     }
 }
@@ -713,9 +810,14 @@ static void touch_event_handler_brake(lv_event_t *e)
     if (code == LV_EVENT_PRESSED) {
         // Handle brake touch event
         show_brake(255); // Show the brake icon
+        bl_LED_HW(true);
     }else{
+
         if(code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) 
+        {
             show_brake(50); // Hide the brake icon
+            bl_LED_HW(false);
+        } 
     }
 }
 
@@ -851,22 +953,60 @@ void app_main(void)
     ESP_LOGI(TAG, "device added");
 
     TLC59711_begin(&ledDriver, led_spi_handle);
-    TLC59711_setPWM(&ledDriver, 4, 65535);
-    TLC59711_setPWM(&ledDriver, 5, 65535);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(500) ;
-    TLC59711_setPWM(&ledDriver, 4, 0);
-    TLC59711_setPWM(&ledDriver, 5, 65535);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(500) ;
-    TLC59711_setPWM(&ledDriver, 5, 0);
-    TLC59711_setPWM(&ledDriver, 4, 65535);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(500) ;
-    TLC59711_setPWM(&ledDriver, 4, 0);
-    TLC59711_setPWM(&ledDriver, 5, 65535);
+
+    TLC59711_setPWM(&ledDriver, LED_HL, 32766);
+    TLC59711_setPWM(&ledDriver, LED_TI_FL, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_FR, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_RL, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_RR, 0);
+    TLC59711_setPWM(&ledDriver, LED_HB_1, 0);
+    TLC59711_setPWM(&ledDriver, LED_HB_2, 0);
+    TLC59711_setPWM(&ledDriver, LED_RL_1, 8191);
+    TLC59711_setPWM(&ledDriver, LED_RL_2, 8191);
     TLC59711_write(&ledDriver);
 
+    
+    /*     TLC59711_setPWM(&ledDriver, 0, 65535);
+    TLC59711_setPWM(&ledDriver, 1, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ;
+    TLC59711_setPWM(&ledDriver, 1, 65535);
+    TLC59711_setPWM(&ledDriver, 0, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ;
+    TLC59711_setPWM(&ledDriver, 4, 65535);
+    TLC59711_setPWM(&ledDriver, 1, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ;
+    TLC59711_setPWM(&ledDriver, 3, 65535);
+    TLC59711_setPWM(&ledDriver, 4, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ;
+    TLC59711_setPWM(&ledDriver, 6, 65535);
+    TLC59711_setPWM(&ledDriver, 3, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ;
+    TLC59711_setPWM(&ledDriver, 7, 65535);
+    TLC59711_setPWM(&ledDriver, 6, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ;
+    TLC59711_setPWM(&ledDriver, 8, 65535);
+    TLC59711_setPWM(&ledDriver, 7, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ;
+    TLC59711_setPWM(&ledDriver, 9, 65535);
+    TLC59711_setPWM(&ledDriver, 8, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ;
+    TLC59711_setPWM(&ledDriver, 10, 65535);
+    TLC59711_setPWM(&ledDriver, 9, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ;
+    TLC59711_setPWM(&ledDriver, 11, 65535);
+    TLC59711_setPWM(&ledDriver, 10, 0);
+    TLC59711_write(&ledDriver);
+    vTaskDelay(2500) ; 
+ */
 
 
     ESP_LOGI(TAG, "Install panel IO");
