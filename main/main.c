@@ -142,6 +142,7 @@ static void lvgl_flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t 
 lv_obj_t* arrow_left_off = NULL;
 lv_obj_t* arrow_right_off = NULL;
 lv_obj_t* hazard_off = NULL;
+lv_obj_t* power_off = NULL;
 lv_obj_t* brake_off = NULL; // Pointer to the arrow object
 lv_obj_t* high_beam_off = NULL; // Pointer to the arrow object
 lv_obj_t* low_beam_off = NULL; // Pointer to the arrow object
@@ -159,9 +160,11 @@ bool high_beam_on_flag = false;
 bool arrow_left_blinking = false;
 bool arrow_right_blinking = false;
 bool hazard_blinking = false;
+bool power_on_flag = false;
 
 uint8_t blinkLED = 0;  //1..FL,2..RL,4..FR,8..RR
 bool ledState = false;
+bool hazardState = false;
 
 
 
@@ -334,6 +337,34 @@ void blink_LED_HW_off()
     TLC59711_setPWM(&ledDriver, LED_TI_FR, 0);
     TLC59711_setPWM(&ledDriver, LED_TI_RR, 0);
     ledState=false;
+    TLC59711_write(&ledDriver);
+}
+
+void set_led_power_off()
+{
+    TLC59711_setPWM(&ledDriver, LED_HB_1, 0);
+    TLC59711_setPWM(&ledDriver, LED_HB_2, 0);
+    TLC59711_setPWM(&ledDriver, LED_HL, 0);
+    TLC59711_setPWM(&ledDriver, LED_RL_1, 0);
+    TLC59711_setPWM(&ledDriver, LED_RL_2, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_FL, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_RL, 0); 
+    TLC59711_setPWM(&ledDriver, LED_TI_FR, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_RR, 0);
+    TLC59711_write(&ledDriver);
+}
+
+void set_led_power_on()
+{
+    TLC59711_setPWM(&ledDriver, LED_HB_1, 0);
+    TLC59711_setPWM(&ledDriver, LED_HB_2, 0);
+    TLC59711_setPWM(&ledDriver, LED_HL, 32766);
+    TLC59711_setPWM(&ledDriver, LED_RL_1, 8191);
+    TLC59711_setPWM(&ledDriver, LED_RL_2, 8191);
+    TLC59711_setPWM(&ledDriver, LED_TI_FL, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_RL, 0); 
+    TLC59711_setPWM(&ledDriver, LED_TI_FR, 0);
+    TLC59711_setPWM(&ledDriver, LED_TI_RR, 0);
     TLC59711_write(&ledDriver);
 }
 
@@ -539,12 +570,13 @@ void show_hazard(int32_t v)
 
 void show_power(int32_t v)
 {
-    LV_IMG_DECLARE(power);  // Declare the image (auto-defined by converter)
-
-    lv_obj_t *img_power = lv_img_create(mainScreen);     // Create image object
-    lv_img_set_src(img_power, &power);                 // Set image source
-    lv_obj_align(img_power, LV_ALIGN_CENTER, -170, 30);
-    lv_obj_set_style_opa(img_power, LV_OPA_COVER, 0);
+    if(power_off == NULL) {
+        LV_IMG_DECLARE(power);  // Declare the image (auto-defined by converter)
+        power_off = lv_img_create(mainScreen);     // Create image object
+        lv_img_set_src(power_off, &power);                 // Set image source
+        lv_obj_align(power_off, LV_ALIGN_CENTER, -170, 30);
+    }
+    lv_obj_set_style_opa(power_off, v, 0);
 }
 
 void show_high_beam(int32_t v)
@@ -585,11 +617,23 @@ void show_all_icons(void)
     show_arrow_left(50); // Show the left arrow
     show_arrow_right(50); // Show the right arrow
     show_hazard(50); // Show the hazard icon
-    show_power(50); // Show the power icon
+    show_power(200); // Show the power icon
     show_high_beam(100); // Show the high beam icon
     show_low_beam(255); // Show the low beam icon
     show_brake(50); // Show the brake icon
 }
+
+void show_power_off(void)
+{
+    show_arrow_left(0); // Show the left arrow
+    show_arrow_right(0); // Show the right arrow
+    show_hazard(50); // Show the hazard icon
+    show_power(50); // Show the power icon
+    show_high_beam(0); // Show the high beam icon
+    show_low_beam(0); // Show the low beam icon
+    show_brake(0); // Show the brake icon
+}
+
 
 
 void create_splash_screen(void)
@@ -688,36 +732,12 @@ void show_splash_screen(void)
 
 }
 
-/*void my_touch_function()
-{
-    // Your custom logic here
-    ESP_LOGI(TAG, "Touch area clicked!");
-    if (arrow_off != NULL)
-    {
-        remove_arrow_off(); // Remove the arrow if it exists
-        create_blinking_arrow();
-    }
-    else
-    {
-        stop_animation();
-        show_arrow(); // Show the arrow if it doesn't exist
-    }
-}
-
-static void touch_event_handler(lv_event_t *e) 
-{
-    lv_event_code_t code = lv_event_get_code(e);
-    
-    if (code == LV_EVENT_CLICKED) {
-        my_touch_function();  // Call your function
-    }
-}*/
 
 static void touch_event_handler_arrow_left(lv_event_t *e)
 {
     lv_event_code_t code = lv_event_get_code(e);
 
-    if (code == LV_EVENT_CLICKED) {
+    if (code == LV_EVENT_CLICKED && !hazardState && power_on_flag) {
         if(!arrow_left_blinking) {
             if(arrow_right_blinking){
                 stop_animation_arrow_right();
@@ -737,7 +757,7 @@ static void touch_event_handler_arrow_right(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     
 
-    if (code == LV_EVENT_CLICKED) {
+    if (code == LV_EVENT_CLICKED && !hazardState && power_on_flag) {
         if(!arrow_right_blinking) {
             if(arrow_left_blinking){
                 stop_animation_arrow_left();
@@ -762,14 +782,21 @@ static void touch_event_handler_hazard(lv_event_t *e)
                 remove_arrow_left_off();
                 remove_arrow_right_off();
                 crete_blinking_hazard_group(); // Create the hazard group with blinking arrows
+                hazardState = true;
             }else{
                 stop_animation_hazard(); // Stop the hazard animation
                 remove_hazard_off(); // Remove the arrow if it exists
                 remove_arrow_left_off();
                 remove_arrow_right_off();
                 show_hazard(50); // Show the arrow if it doesn't exist
-                show_arrow_right(50); // Show the arrow if it doesn't exist
-                show_arrow_left(50); // Show the arrow if it doesn't exist
+                if(power_on_flag){
+                    show_arrow_right(50); // Show the arrow if it doesn't exist
+                    show_arrow_left(50); // Show the arrow if it doesn't exist
+                }else{
+                    show_arrow_right(0); // Show the arrow if it doesn't exist
+                    show_arrow_left(0); // Show the arrow if it doesn't exist
+                }
+                hazardState = false;
             }
         }
 }
@@ -779,15 +806,26 @@ static void touch_event_handler_power(lv_event_t *e)
     lv_event_code_t code = lv_event_get_code(e);
     
     if (code == LV_EVENT_CLICKED) {
-    }
+        if(power_on_flag)
+        {
+            power_on_flag = false;
+            set_led_power_off();
+            show_power_off();
+        }else{
+            power_on_flag = true;
+            show_splash_screen(); 
+            set_led_power_on();           
+            show_all_icons();
+        }
 
+    }
 }
 
 static void touch_event_handler_high_beam(lv_event_t *e) 
 {
     lv_event_code_t code = lv_event_get_code(e);
     
-    if (code == LV_EVENT_CLICKED) {
+    if (code == LV_EVENT_CLICKED && power_on_flag) {
         if(high_beam_on_flag)
         {
             high_beam_on_flag = false;
@@ -806,20 +844,22 @@ static void touch_event_handler_high_beam(lv_event_t *e)
 static void touch_event_handler_brake(lv_event_t *e) 
 {
     lv_event_code_t code = lv_event_get_code(e);
-    
-    if (code == LV_EVENT_PRESSED) {
+
+    if (code == LV_EVENT_PRESSED && power_on_flag) {
         // Handle brake touch event
         show_brake(255); // Show the brake icon
         bl_LED_HW(true);
     }else{
 
-        if(code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) 
+        if((code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST) && power_on_flag) 
         {
             show_brake(50); // Hide the brake icon
             bl_LED_HW(false);
         } 
     }
 }
+
+
 
 void create_touch_area_arrow_left(void) 
 {
@@ -893,6 +933,7 @@ void create_touch_area_brake(void)
     lv_obj_add_event_cb(touch_area_brake, touch_event_handler_brake, LV_EVENT_ALL, NULL);
 }
 
+
 void create_touch_areas(void)
 {
     create_touch_area_arrow_left();
@@ -954,59 +995,9 @@ void app_main(void)
 
     TLC59711_begin(&ledDriver, led_spi_handle);
 
-    TLC59711_setPWM(&ledDriver, LED_HL, 32766);
-    TLC59711_setPWM(&ledDriver, LED_TI_FL, 0);
-    TLC59711_setPWM(&ledDriver, LED_TI_FR, 0);
-    TLC59711_setPWM(&ledDriver, LED_TI_RL, 0);
-    TLC59711_setPWM(&ledDriver, LED_TI_RR, 0);
-    TLC59711_setPWM(&ledDriver, LED_HB_1, 0);
-    TLC59711_setPWM(&ledDriver, LED_HB_2, 0);
-    TLC59711_setPWM(&ledDriver, LED_RL_1, 8191);
-    TLC59711_setPWM(&ledDriver, LED_RL_2, 8191);
-    TLC59711_write(&ledDriver);
+    set_led_power_on();
 
-    
-    /*     TLC59711_setPWM(&ledDriver, 0, 65535);
-    TLC59711_setPWM(&ledDriver, 1, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ;
-    TLC59711_setPWM(&ledDriver, 1, 65535);
-    TLC59711_setPWM(&ledDriver, 0, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ;
-    TLC59711_setPWM(&ledDriver, 4, 65535);
-    TLC59711_setPWM(&ledDriver, 1, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ;
-    TLC59711_setPWM(&ledDriver, 3, 65535);
-    TLC59711_setPWM(&ledDriver, 4, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ;
-    TLC59711_setPWM(&ledDriver, 6, 65535);
-    TLC59711_setPWM(&ledDriver, 3, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ;
-    TLC59711_setPWM(&ledDriver, 7, 65535);
-    TLC59711_setPWM(&ledDriver, 6, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ;
-    TLC59711_setPWM(&ledDriver, 8, 65535);
-    TLC59711_setPWM(&ledDriver, 7, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ;
-    TLC59711_setPWM(&ledDriver, 9, 65535);
-    TLC59711_setPWM(&ledDriver, 8, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ;
-    TLC59711_setPWM(&ledDriver, 10, 65535);
-    TLC59711_setPWM(&ledDriver, 9, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ;
-    TLC59711_setPWM(&ledDriver, 11, 65535);
-    TLC59711_setPWM(&ledDriver, 10, 0);
-    TLC59711_write(&ledDriver);
-    vTaskDelay(2500) ; 
- */
+    power_on_flag = true;
 
 
     ESP_LOGI(TAG, "Install panel IO");
